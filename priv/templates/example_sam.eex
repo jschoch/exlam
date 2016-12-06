@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: An AWS Serverless Specification template describing your function.
+Resources:
+  <%= b.app %>:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs4.3
+      CodeUri: <%= b.sam_s3_bucket %>
+      Description: 'An exlam function'
+      MemorySize: <%= b.sam_mem_size %>
+      Timeout: <%= b.sam_timeout %>
+      Role: '<%= b.sam_role_arn %>'

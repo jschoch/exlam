@@ -1,0 +1,18 @@
+# template for  exlam config
+
+use Mix.Config
+config :exlam, 
+    app_name: "<%= b.app %>",
+    tmp_dir: "<%= b.tmp_dir %>" ,
+    zip: "fast",
+    sam_mem_size: <%= b.sam_mem_size %>,
+    sam_timeout: <%= b.sam_timeout %>,
+    #sam_role_arn: "rn:aws:iam::434356579089:role/lambda_basic_execution",
+    sam_role_arn: "<%= b.sam_role_arn %>",
+    sam_s3_bucket: "<%= b.sam_s3_bucket %>",
+    sam_stack_name: "<%= b.sam_stack_name %>",
+    http_port: 8086,
+    erts_version: "<%= b.erts_version %>",
+    use_phoenix: false
+    
+

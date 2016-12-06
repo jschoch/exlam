@@ -1,0 +1,175 @@
+'use strict';
+
+var app = "<%= b.app %>";
+var erts_version = "<%= b.erts_version %>";
+
+const MAX_FAILS = 4;
+var fs = require("fs")
+var version = "<%= b.version %>";
+var exec = require('child_process').exec;
+var es = require('child_process').execSync;
+var http = require("http");
+var logfile = "/var/task/burn/dumblog.log"
+var outlogfile = null;
+var errlogfile = null;
+if(fs.existsSync(logfile)){
+  outlogfile = fs.openSync("/var/task/burn/dumblog.log","a");
+  errlogfile = fs.openSync("/var/task/burn/dumblog.log","a");
+}
+var homeHash = {};
+
+var child_process = require('child_process'),
+        go_proc = null,
+        done = console.log.bind(console),
+        fails = 0;
+
+function doEnv(process,home){
+  if (home == undefined){
+    process.env["HOME"] = "/var/task/burn"
+  }
+  process.env["ERL_EPMD_ADDRESS"] = "127.0.0.1";
+  process.env["LANG"] = "en_US.utf-8";
+  process.env["LC_ALL"] = "en_US.utf-8";
+  process.env["PORT"] = "<%= b.http_port %>";
+  //console.log("doEnv done",process.env);
+}
+
+
+var url = "http://localhost:<%= b.http_port %>/"
+function hget(context){
+  console.log("starting hget")
+  http.get(url, (res) => {
+  const statusCode = res.statusCode;
+  const contentType = res.headers['content-type'];
+
+  let error;
+  if (statusCode !== 200) {
+    error = new Error(`Request Failed.\n` +
+    `Status Code: ${statusCode}`);
+  } //else if (!/^application\/json/.test(contentType)) {
+  //error = new Error(`Invalid content-type.\n` +
+  //                      `Expected application/json but received ${contentType}`);
+  //}
+  if (error) {
+    console.log(error.message);
+    // consume response data to free up memory
+    res.resume();
+    return;
+  }
+
+  res.setEncoding('utf8');
+  let rawData = '';
+  res.on('data', (chunk) => rawData += chunk);
+  res.on('end', () => {
+    try {
+      //let parsedData = JSON.parse(rawData);
+      console.log(rawData);
+      return context.done(null,rawData);
+      } catch (e) {
+      console.log(e.message);
+      }
+    });
+  }).on('error', (e) => {
+    console.log(`Got error: ${e.message}`);
+  });
+}
+
+
+(function new_go_proc() {
+
+  doEnv(process);
+  var epmd = child_process.spawn('/var/task/burn/erts-<%= b.erts_version %>/bin/epmd',['-daemon','-relaxed_command_check'], { detached: true, stdio: 'ignore' });
+  epmd.unref();
+  es("sleep 1");
+  go_proc = child_process.spawn('/var/task/burn/bin/'+app,['foreground'],
+    { stdio: ['ignore',outlogfile,errlogfile],
+      detached: true,
+      env: {
+        "HOME": "/var/task/burn",
+        "ERL_EPMD_ADDRESS": "127.0.0.1",
+        "LANG": "en_US.utf-8",
+        "LC_ALL": "en_US.utf-8"
+      }
+    });
+
+  // CRITICAL: the process will freeze and erlang will not boot without some
+  // sleep
+  es("sleep 2");
+
+  go_proc.on('error', function(err) {
+    //process.stderr.write("go_proc errored: "+JSON.stringify(err)+"\n");
+    if (++fails > MAX_FAILS) {
+      console.log("MAX_FAILS > max, restarting container")
+      process.exit(1); // force container restart after too many fails
+    }
+    new_go_proc();
+    done(err);
+  });
+
+  go_proc.on('exit', function(code) {
+    //process.stderr.write("go_proc exited prematurely with code: "+code+"\n");
+    console.log("go_proc exited prematurely with code: "+code+"\n");
+    if (++fails > MAX_FAILS) {
+      console.log("MAX_FAILS > max, restarting container v2");
+      process.exit(1); // force container restart after too many fails
+    }
+    new_go_proc();
+    done(new Error("Exited with code "+code));
+  });
+
+})();
+
+function runit(cmd){
+  var r = es(cmd, { encoding: 'utf8',timeout: 1000});
+  return r
+};
+
+//var exec = require('child_process').exec;
+function docmd(cmd,context){
+  exec(cmd, (error, stdout,stderr) => {
+    var r = {out: stdout,err: stderr}
+    var s = JSON.stringify(r)
+    console.log("docmd v: "+version,r,s);
+    if (context){
+      context.done(error,r);
+    }
+  });
+
+}
+
+function debug(){
+  var result = [];
+  result.push(runit('netstat -an'));
+  result.push(runit('whoami'));
+  result.push(runit('ls -al /var/task/burn/bin/'));
+  result.push(runit('ps -elf'));
+  result.push(runit('ls -al /var/task/burn/'));
+  return result.join("\n");
+};
+
+function checkHomes(username){
+  var homedir = "/var/task/homes/" + username
+  if (!homeHash.hasOwnProperty(homedir)){
+    if (!fs.existsSync(homedir)){
+      console.log("adding directory for this user: "+username);
+      fs.mkdirSync(homedir,'0777');
+      homeHash[homedir] = true;
+    }
+  }
+  return homedir
+}
+
+exports.handler = function(event, context) {
+
+  // always output to current context's done
+  var username = String(es( "whoami", { encoding: 'utf8', timeout: 1000 } )).trim();
+  var homedir = checkHomes(username);
+  doEnv(process,homedir);
+
+  if (event.cmd && event.cmd == "hget"){
+    return hget(context);
+  }
+  else if(event.cmd){
+    return docmd(event.cmd,context);
+  }
+}
