@@ -1,12 +1,17 @@
-figure out how to limit 777 as much as possible
+##TODO
+
+* figure out how to limit 777 as much as possible
 
 
-get stack update working
+### CLI TODO 
 consider if deploy.yaml should be updated from config.exs, values in 2 places sucks
 prompt to complete INCOMPLETE, perhaps interactive setup
 ensure web server is started
 
 
+### CF deploy TODO
+
+get stack update working
   
 current deploy
   update s3 url in deploy.yaml
