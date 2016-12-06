@@ -4,7 +4,7 @@ defmodule Exlam.Mixfile do
   def project do
     [app: app(),
      version: version(),
-     elixir: "~> 1.3",
+     elixir: "~> 1.0",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      aliases: aliases(),
