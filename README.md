@@ -2,7 +2,7 @@
 
 This is code is not production ready, many kinks to be worked out.  Contributors welcome.
 
-##Deploy apps to AWS Lambda
+## Deploy apps to AWS Lambda
 
 ensure you have distillery installed and a web server 
   insecure testing example: 
